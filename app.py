@@ -72,6 +72,7 @@ with tab1:
             st.success(f"✅ Predicted Status: **{predicted_status}**")
 
 # --- TAB 2: DAILY DEMAND HEATMAP FROM UPLOADED DATA ---
+# --- TAB 2: DAILY DEMAND HEATMAP ---
 with tab2:
     st.header("Daily Demand Heatmap from Excel/CSV")
     st.write("Upload your time-series data to visualize daily patterns.")
@@ -80,35 +81,32 @@ with tab2:
 
     if uploaded_file:
         try:
-            # Load Excel/CSV
             if uploaded_file.name.endswith(".xlsx"):
                 df = pd.read_excel(uploaded_file, engine='openpyxl')
             else:
                 df = pd.read_csv(uploaded_file)
-            
+
             st.write("### Data Preview")
             st.dataframe(df.head())
 
-            # Ask user to select date and numeric columns
-            col_options = df.columns.tolist()
+            # Ensure column names are strings
+            col_options = [str(col) for col in df.columns.tolist()]
             default_date_col = 'booking_date' if 'booking_date' in col_options else col_options[0]
             default_value_col = 'lead_time_minutes' if 'lead_time_minutes' in col_options else col_options[1]
-            
+
             date_col = st.selectbox("Select Date Column", options=col_options, index=col_options.index(default_date_col))
             value_col = st.selectbox("Select Numeric Column for Heatmap", options=col_options, index=col_options.index(default_value_col))
 
-            # Convert date column to datetime
+            # Convert columns safely
             df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+            df[value_col] = pd.to_numeric(df[value_col], errors='coerce')
             df = df.dropna(subset=[date_col, value_col])
 
-            # Aggregate numeric values per day
+            # Aggregate per day
             daily_data = df.groupby(df[date_col].dt.date)[value_col].sum()
-
-            # Convert index back to datetime for calplot
             daily_data.index = pd.to_datetime(daily_data.index)
             daily_data = daily_data.sort_index()
 
-            # Generate calplot heatmap (fixed: removed ax parameter)
             st.write("### Heatmap")
             calplot.calplot(
                 daily_data,
@@ -119,9 +117,10 @@ with tab2:
                 monthlabels=True,
                 figsize=(15, 6)
             )
-            st.pyplot(plt.gcf())  # get current figure
+            st.pyplot(plt.gcf())
 
         except Exception as e:
             st.error(f"Error loading or processing file: {e}")
     else:
         st.info("Please upload an Excel or CSV file to visualize the heatmap.")
+
