@@ -6,7 +6,12 @@ from datetime import datetime
 
 # --- Load the trained model ---
 model_filename = "gradient_boosting_model.pkl"
-gb_model = joblib.load(model_filename)
+# Add a check to ensure the model file exists
+try:
+    gb_model = joblib.load(model_filename)
+except FileNotFoundError:
+    st.error(f"Error: The model file '{model_filename}' was not found. Please ensure it's in the same directory.")
+    st.stop() # Stops the app if the model isn't found
 
 # --- Define feature order ---
 features = [
@@ -44,8 +49,12 @@ appointment_time = st.time_input("⏰ Appointment Time", (datetime.now().replace
 booking_datetime = datetime.combine(booking_date, booking_time)
 appointment_datetime = datetime.combine(appointment_date, appointment_time)
 
-# Calculate lead time in minutes
-lead_time_minutes = max(0, int((appointment_datetime - booking_datetime).total_seconds() / 60))
+# --- Calculate lead time with user feedback ---
+if appointment_datetime < booking_datetime:
+    st.warning("⚠️ Appointment date/time cannot be before the booking date/time.")
+    lead_time_minutes = 0
+else:
+    lead_time_minutes = int((appointment_datetime - booking_datetime).total_seconds() / 60)
 st.info(f"⏱️ Lead Time: **{lead_time_minutes} minutes**")
 
 # Other Inputs
