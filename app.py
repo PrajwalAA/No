@@ -21,7 +21,14 @@ weather_map = {"Sunny": 0, "Rainy": 1, "Cloudy": 2, "Storm": 3}
 tags_map = {"New": 0, "Returning": 1, "VIP": 2, "Other": 3}
 
 # Labels (update with your training target classes)
-label_map = {0: "No-Show", 1: "Completed", 2: "Cancelled"}
+label_map = {
+    0: "No-Show",
+    1: "Completed",
+    2: "Cancelled",
+    3: "Rescheduled",
+    4: "Confirmed"
+}
+
 
 # --- Streamlit UI ---
 st.title("🗓️ Appointment Status Prediction (Gradient Boosting)")
