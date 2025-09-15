@@ -5,6 +5,8 @@ import pandas as pd
 from datetime import datetime, timedelta
 import calplot
 import matplotlib.pyplot as plt
+import seaborn as sns
+from prophet import Prophet
 
 # --- 1. CONFIGURATION AND DATA LOADING ---
 channel_map = {"Online": 0, "Phone": 1, "In-Person": 2}
