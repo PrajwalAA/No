@@ -82,7 +82,7 @@ with tab2:
         try:
             # Load Excel/CSV
             if uploaded_file.name.endswith(".xlsx"):
-                df = pd.read_excel(uploaded_file)
+                df = pd.read_excel(uploaded_file, engine='openpyxl')
             else:
                 df = pd.read_csv(uploaded_file)
             
@@ -106,23 +106,20 @@ with tab2:
 
             # Convert index back to datetime for calplot
             daily_data.index = pd.to_datetime(daily_data.index)
-            
-            # Sort by date
             daily_data = daily_data.sort_index()
 
-            # Generate calplot heatmap
+            # Generate calplot heatmap (fixed: removed ax parameter)
             st.write("### Heatmap")
-            fig, ax = plt.subplots(figsize=(15, 6))
             calplot.calplot(
                 daily_data,
-                ax=ax,
                 suptitle=f"Daily {value_col} Heatmap",
                 cmap="YlGnBu",
                 edgecolor="gray",
                 linewidth=0.5,
-                monthlabels=True
+                monthlabels=True,
+                figsize=(15, 6)
             )
-            st.pyplot(fig)
+            st.pyplot(plt.gcf())  # get current figure
 
         except Exception as e:
             st.error(f"Error loading or processing file: {e}")
