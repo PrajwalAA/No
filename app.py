@@ -53,29 +53,36 @@ clock_html = """
 <script src="https://cdnjs.cloudflare.com/ajax/libs/clockpicker/0.0.7/bootstrap-clockpicker.min.js"></script>
 
 <style>
+/* Custom CSS to improve layout and visibility */
 .clockpicker-html-container {
     display: flex;
-    justify-content: space-around;
+    flex-wrap: wrap; /* Allows items to wrap on smaller screens */
+    justify-content: center; /* Center the items horizontally */
     align-items: center;
+    gap: 40px; /* Add space between the two clock pickers */
     padding: 20px 0;
 }
-.clockpicker-html-container div {
+.clockpicker-html-container .clockpicker {
+    width: 200px; /* Give the container a fixed width */
     text-align: center;
+}
+.clockpicker-html-container input {
+    font-size: 1.25rem; /* Make the input text larger */
+    text-align: center;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    padding: 8px;
 }
 </style>
 
 <div class="clockpicker-html-container">
-    <div>
+    <div class="clockpicker" data-placement="bottom" data-align="left" data-autoclose="true">
         <b>Booking Time</b>
-        <div class="clockpicker" data-placement="bottom" data-align="left" data-autoclose="true">
-            <input type="text" value="11:00">
-        </div>
+        <input type="text" value="11:00">
     </div>
-    <div>
+    <div class="clockpicker" data-placement="bottom" data-align="left" data-autoclose="true">
         <b>Appointment Time</b>
-        <div class="clockpicker" data-placement="bottom" data-align="left" data-autoclose="true">
-            <input type="text" value="12:00">
-        </div>
+        <input type="text" value="12:00">
     </div>
 </div>
 
