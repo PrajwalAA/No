@@ -1,4 +1,51 @@
 import streamlit as st
+import pandas as pd
+import calplot
+import matplotlib.pyplot as plt
+
+st.header("Daily Demand Heatmap from Excel Dataset")
+
+# Upload the file
+uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx", "csv"])
+if uploaded_file:
+    try:
+        # Load Excel/CSV
+        if uploaded_file.name.endswith("appointments.xlsx"):
+            df = pd.read_excel(uploaded_file)
+        else:
+            df = pd.read_csv(uploaded_file)
+        
+        st.write("Preview of dataset:", df.head())
+
+        # Ask user to select date and numeric columns
+        date_col = st.selectbox("Select Date Column", options=df.columns, index=df.columns.get_loc("booking_date"))
+        value_col = st.selectbox("Select Numeric Column for Heatmap", options=df.columns, index=df.columns.get_loc("lead_time_minutes"))
+
+        # Convert date column to datetime
+        df[date_col] = pd.to_datetime(df[date_col])
+
+        # Aggregate numeric values per day
+        daily_data = df.groupby(df[date_col])[value_col].sum()
+        
+        # Sort by date
+        daily_data = daily_data.sort_index()
+
+        # Generate calplot heatmap
+        fig, ax = calplot.calplot(
+            daily_data,
+            suptitle=f"Daily {value_col} Heatmap",
+            cmap="YlGnBu",
+            edgecolor="gray",
+            linewidth=0.5,
+            figsize=(15, 6),
+            monthlabels=True
+        )
+        st.pyplot(fig)
+
+    except Exception as e:
+        st.error(f"Error loading or processing file: {e}")
+else:
+    st.info("Upload an Excel or CSV file to visualize the heatmap.") combine import streamlit as st
 import joblib
 import numpy as np
 import pandas as pd
@@ -112,3 +159,4 @@ with tab2:
             st.pyplot(fig)
         except Exception as e:
             st.error(f"An error occurred while generating the heatmap: {e}")
+this 
