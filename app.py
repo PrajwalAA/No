@@ -1,55 +1,8 @@
 import streamlit as st
-import pandas as pd
-import calplot
-import matplotlib.pyplot as plt
-
-st.header("Daily Demand Heatmap from Excel Dataset")
-
-# Upload the file
-uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx", "csv"])
-if uploaded_file:
-    try:
-        # Load Excel/CSV
-        if uploaded_file.name.endswith("appointments.xlsx"):
-            df = pd.read_excel(uploaded_file)
-        else:
-            df = pd.read_csv(uploaded_file)
-        
-        st.write("Preview of dataset:", df.head())
-
-        # Ask user to select date and numeric columns
-        date_col = st.selectbox("Select Date Column", options=df.columns, index=df.columns.get_loc("booking_date"))
-        value_col = st.selectbox("Select Numeric Column for Heatmap", options=df.columns, index=df.columns.get_loc("lead_time_minutes"))
-
-        # Convert date column to datetime
-        df[date_col] = pd.to_datetime(df[date_col])
-
-        # Aggregate numeric values per day
-        daily_data = df.groupby(df[date_col])[value_col].sum()
-        
-        # Sort by date
-        daily_data = daily_data.sort_index()
-
-        # Generate calplot heatmap
-        fig, ax = calplot.calplot(
-            daily_data,
-            suptitle=f"Daily {value_col} Heatmap",
-            cmap="YlGnBu",
-            edgecolor="gray",
-            linewidth=0.5,
-            figsize=(15, 6),
-            monthlabels=True
-        )
-        st.pyplot(fig)
-
-    except Exception as e:
-        st.error(f"Error loading or processing file: {e}")
-else:
-    st.info("Upload an Excel or CSV file to visualize the heatmap.") combine import streamlit as st
 import joblib
 import numpy as np
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import calplot
 import matplotlib.pyplot as plt
 
@@ -65,7 +18,7 @@ st.set_page_config(page_title="Demand & Prediction Dashboard", layout="wide", in
 st.title("Demand & Appointment Status Dashboard")
 st.markdown("---")
 
-tab1, tab2 = st.tabs(["🔮 Appointment Status Prediction", "🗓️ Demand Forecast Heatmap"])
+tab1, tab2 = st.tabs(["🔮 Appointment Status Prediction", "🗓️ Daily Demand Heatmap"])
 
 # --- TAB 1: APPOINTMENT STATUS PREDICTION ---
 with tab1:
@@ -90,10 +43,12 @@ with tab1:
             booking_time = st.time_input("⏰ Booking Time", now.time())
         with col2:
             appointment_date = st.date_input("📅 Appointment Date", now.date())
-            appointment_time = st.time_input("⏰ Appointment Time", (now + pd.Timedelta(hours=1)).time())
+            appointment_time = st.time_input("⏰ Appointment Time", (now + timedelta(hours=1)).time())
 
         booking_datetime = datetime.combine(booking_date, booking_time)
         appointment_datetime = datetime.combine(appointment_date, appointment_time)
+        if appointment_datetime < booking_datetime:
+            st.warning("⚠️ Appointment datetime is before booking datetime. Lead time set to 0.")
         lead_time_minutes = max(0, int((appointment_datetime - booking_datetime).total_seconds() / 60))
         st.info(f"⏱️ Lead Time: **{lead_time_minutes} minutes**")
 
@@ -116,47 +71,60 @@ with tab1:
             predicted_status = label_map.get(prediction, f"Unknown Class ({prediction})")
             st.success(f"✅ Predicted Status: **{predicted_status}**")
 
-# --- TAB 2: DEMAND FORECAST HEATMAP ---
+# --- TAB 2: DAILY DEMAND HEATMAP FROM UPLOADED DATA ---
 with tab2:
-    st.header("Daily Demand Forecast Heatmap")
-    st.write("Visualize demand patterns over time to identify trends and seasonality.")
+    st.header("Daily Demand Heatmap from Excel/CSV")
+    st.write("Upload your time-series data to visualize daily patterns.")
 
-    @st.cache_data
-    def generate_demand_data(start_year, end_year):
-        dates = pd.date_range(start=f'{start_year}-01-01', end=f'{end_year}-12-31')
-        np.random.seed(42)
-        base_demand = np.random.normal(loc=100, scale=15, size=len(dates))
-        weekly_pattern = np.cos(2 * np.pi * dates.dayofweek / 7) * 20
-        yearly_pattern = np.sin(2 * np.pi * dates.dayofyear / 365.25) * 30
-        demand_values = base_demand + weekly_pattern + yearly_pattern
-        demand_series = pd.Series(demand_values, index=dates)
-        spike_dates = pd.to_datetime([f'{2025}-07-04', f'{2025}-12-25'])
-        demand_series.loc[demand_series.index.isin(spike_dates)] += 150
-        return demand_series.astype(int).clip(lower=0)
+    uploaded_file = st.file_uploader("Upload your file", type=["xlsx", "csv"])
 
-    col6, col7 = st.columns(2)
-    with col6:
-        start_year = st.selectbox("Start Year", options=list(range(2024, 2027)), index=1)
-    with col7:
-        end_year = st.selectbox("End Year", options=list(range(2024, 2027)), index=1)
-
-    if start_year > end_year:
-        st.warning("The start year must be less than or equal to the end year.")
-    else:
-        demand_data = generate_demand_data(start_year, end_year)
+    if uploaded_file:
         try:
-            fig = calplot.calplot(
-                demand_data,
-                suptitle=f'Daily Demand Forecast for {start_year}-{end_year}',
-                cmap='YlGnBu',
-                colorbar=True,
-                edgecolor='gray',
+            # Load Excel/CSV
+            if uploaded_file.name.endswith(".xlsx"):
+                df = pd.read_excel(uploaded_file)
+            else:
+                df = pd.read_csv(uploaded_file)
+            
+            st.write("### Data Preview")
+            st.dataframe(df.head())
+
+            # Ask user to select date and numeric columns
+            col_options = df.columns.tolist()
+            default_date_col = 'booking_date' if 'booking_date' in col_options else col_options[0]
+            default_value_col = 'lead_time_minutes' if 'lead_time_minutes' in col_options else col_options[1]
+            
+            date_col = st.selectbox("Select Date Column", options=col_options, index=col_options.index(default_date_col))
+            value_col = st.selectbox("Select Numeric Column for Heatmap", options=col_options, index=col_options.index(default_value_col))
+
+            # Convert date column to datetime
+            df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+            df = df.dropna(subset=[date_col, value_col])
+
+            # Aggregate numeric values per day
+            daily_data = df.groupby(df[date_col].dt.date)[value_col].sum()
+
+            # Convert index back to datetime for calplot
+            daily_data.index = pd.to_datetime(daily_data.index)
+            
+            # Sort by date
+            daily_data = daily_data.sort_index()
+
+            # Generate calplot heatmap
+            st.write("### Heatmap")
+            fig, ax = plt.subplots(figsize=(15, 6))
+            calplot.calplot(
+                daily_data,
+                ax=ax,
+                suptitle=f"Daily {value_col} Heatmap",
+                cmap="YlGnBu",
+                edgecolor="gray",
                 linewidth=0.5,
-                figsize=(15, 6),
-                yearlabel_kws={'fontsize': 14, 'color': 'gray'},
                 monthlabels=True
             )
             st.pyplot(fig)
+
         except Exception as e:
-            st.error(f"An error occurred while generating the heatmap: {e}")
-this 
+            st.error(f"Error loading or processing file: {e}")
+    else:
+        st.info("Please upload an Excel or CSV file to visualize the heatmap.")
