@@ -12,7 +12,7 @@ gb_model = joblib.load(model_filename)
 features = ['lead_time_minutes', 'reschedule_count', 'channel_enc',
             'service_type_enc', 'holiday_flag', 'weather_enc', 'tags_enc']
 
-# --- Example category mappings (replace with your dataset categories if different) ---
+# --- Example category mappings ---
 channel_map = {"Online": 0, "Phone": 1, "In-Person": 2}
 service_type_map = {"Consultation": 0, "Follow-up": 1, "Emergency": 2}
 weather_map = {"Sunny": 0, "Rainy": 1, "Cloudy": 2, "Storm": 3}
@@ -22,21 +22,26 @@ tags_map = {"New": 0, "Returning": 1, "VIP": 2, "Other": 3}
 st.title("🗓️ Appointment Status Prediction (Gradient Boosting)")
 st.write("Fill in the details below to predict appointment status.")
 
-# --- Time pickers for lead time ---
+# --- Two datetime inputs ---
 st.subheader("📅 Select Times to Calculate Lead Time")
 
-booking_datetime = st.datetime_input("Booking Date & Time", datetime.now())
-appointment_datetime = st.datetime_input("Appointment Date & Time", datetime.now() + timedelta(hours=1))
+booking_date = st.date_input("Booking Date", datetime.today())
+booking_time = st.time_input("Booking Time", datetime.now().time())
 
-# Calculate lead time in minutes
+appointment_date = st.date_input("Appointment Date", datetime.today())
+appointment_time = st.time_input("Appointment Time", (datetime.now() + timedelta(hours=1)).time())
+
+# Combine into full datetime
+booking_datetime = datetime.combine(booking_date, booking_time)
+appointment_datetime = datetime.combine(appointment_date, appointment_time)
+
+# Calculate lead time
 lead_time_minutes = int((appointment_datetime - booking_datetime).total_seconds() / 60)
 if lead_time_minutes < 0:
-    st.warning("⚠️ Appointment time cannot be before booking time!")
-    lead_time_minutes = 0
+    st.error("⚠️ Appointment time must be after booking time.")
+else:
+    st.info(f"⏱ Lead Time: **{lead_time_minutes} minutes**")
 
-st.write(f"⏳ Calculated Lead Time: **{lead_time_minutes} minutes**")
-
-# --- Other inputs ---
 reschedule_count = st.number_input("Number of reschedules", min_value=0, max_value=20, step=1)
 channel_enc = channel_map[st.selectbox("Channel", list(channel_map.keys()))]
 service_type_enc = service_type_map[st.selectbox("Service Type", list(service_type_map.keys()))]
@@ -53,7 +58,7 @@ if st.button("🔮 Predict Appointment Status"):
 
     prediction = gb_model.predict(user_data)[0]
 
-    # Mock labels (replace with your actual categories)
+    # Mock label map (replace with actual categories if different)
     label_map = {0: "No-Show", 1: "Completed", 2: "Cancelled"}
     predicted_status = label_map.get(prediction, f"Class {prediction}")
 
