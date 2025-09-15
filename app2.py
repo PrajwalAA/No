@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 # Load data
 df = pd.read_excel("appointments.xlsx")
 
- --- Select columns ---
+# --- Select columns ---
 date_column = st.selectbox("Select Date Column", df.select_dtypes(include=['datetime','object']).columns)
 numeric_column = st.selectbox("Select Numeric Column for Heatmap", df.select_dtypes(include=['int','float']).columns)
 
