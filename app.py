@@ -2,7 +2,7 @@ import streamlit as st
 import joblib
 import numpy as np
 import pandas as pd
-from datetime import datetime, time
+from datetime import datetime
 import calplot
 import matplotlib.pyplot as plt
 
@@ -96,7 +96,16 @@ with tab2:
     # --- Data generation (can be replaced with your actual data) ---
     @st.cache_data
     def generate_demand_data(start_year, end_year):
-        """Generates a Pandas Series with a datetime index and dummy demand data."""
+        """
+        Generates a pandas Series with a datetime index and dummy demand data.
+        
+        Args:
+            start_year (int): The start year for the data.
+            end_year (int): The end year for the data.
+            
+        Returns:
+            pd.Series: A Series with datetime index and integer demand values.
+        """
         start_date = f'{start_year}-01-01'
         end_date = f'{end_year}-12-31'
         dates = pd.date_range(start=start_date, end=end_date, freq='D')
@@ -105,12 +114,16 @@ with tab2:
         base_demand = np.random.normal(loc=100, scale=15, size=len(dates))
         weekly_pattern = np.cos(2 * np.pi * dates.dayofweek / 7) * 20
         yearly_pattern = np.sin(2 * np.pi * dates.dayofyear / 365.25) * 30
+        
         demand_values = base_demand + weekly_pattern + yearly_pattern
+        demand_series = pd.Series(demand_values, index=dates)
+
+        # Use a non-mutating method to add spikes.
+        spike_dates = pd.to_datetime([f'{2025}-07-04', f'{2025}-12-25'])
+        demand_series.loc[demand_series.index.isin(spike_dates)] += 150
         
-        # Simulate a few high-demand spikes
-        demand_values[dates.isin(pd.to_datetime(['2025-07-04', '2025-12-25']))] += 150
-        
-        return pd.Series(np.maximum(0, demand_values).astype(int), index=dates)
+        # Ensure all values are non-negative integers
+        return demand_series.astype(int).clip(lower=0)
 
     # --- UI for Heatmap ---
     col6, col7 = st.columns(2)
