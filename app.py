@@ -73,6 +73,7 @@ with tab1:
 
 # --- TAB 2: DAILY DEMAND HEATMAP FROM UPLOADED DATA ---
 # --- TAB 2: DAILY DEMAND HEATMAP ---
+# --- TAB 2: DAILY DEMAND HEATMAP ---
 with tab2:
     st.header("Daily Demand Heatmap from Excel/CSV")
     st.write("Upload your time-series data to visualize daily patterns.")
@@ -91,12 +92,40 @@ with tab2:
 
             # Ensure column names are strings
             col_options = [str(col) for col in df.columns.tolist()]
-            default_date_col = 'booking_date' if 'booking_date' in col_options else col_options[0]
-            default_value_col = 'lead_time_minutes' if 'lead_time_minutes' in col_options else col_options[1]
+            
+            # --- Robustly determine default columns and their indices ---
+            
+            # Find the default index for the date column
+            default_date_col = 'booking_date'
+            try:
+                date_col_index = col_options.index(default_date_col)
+            except ValueError:
+                date_col_index = 0 # Default to the first column if 'booking_date' is not found
 
-            date_col = st.selectbox("Select Date Column", options=col_options, index=col_options.index(default_date_col))
-            value_col = st.selectbox("Select Numeric Column for Heatmap", options=col_options, index=col_options.index(default_value_col))
+            # Find the default index for the value column
+            default_value_col = 'lead_time_minutes'
+            try:
+                # Check if 'lead_time_minutes' is in the list and is not the same as the date column
+                if default_value_col in col_options and default_value_col != col_options[date_col_index]:
+                    value_col_index = col_options.index(default_value_col)
+                else:
+                    # Find the first numeric column
+                    numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
+                    if numeric_cols:
+                        value_col_index = col_options.index(str(numeric_cols[0]))
+                    else:
+                        value_col_index = 1 if len(col_options) > 1 else 0
 
+            except ValueError:
+                # Fallback to a safe index if the preferred column isn't found
+                value_col_index = 1 if len(col_options) > 1 else 0
+
+            # --- Use the determined indices in the selectbox widgets ---
+            date_col = st.selectbox("Select Date Column", options=col_options, index=date_col_index)
+            value_col = st.selectbox("Select Numeric Column for Heatmap", options=col_options, index=value_col_index)
+            
+            # ... (rest of the code remains the same) ...
+            
             # Convert columns safely
             df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
             df[value_col] = pd.to_numeric(df[value_col], errors='coerce')
@@ -123,4 +152,3 @@ with tab2:
             st.error(f"Error loading or processing file: {e}")
     else:
         st.info("Please upload an Excel or CSV file to visualize the heatmap.")
-
