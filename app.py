@@ -9,6 +9,7 @@ import seaborn as sns
 import plotly.graph_objects as go
 from prophet import Prophet
 
+
 # --- 1. CONFIGURATION AND DATA LOADING ---
 channel_map = {"Online": 0, "Phone": 1, "In-Person": 2}
 service_type_map = {"Consultation": 0, "Follow-up": 1, "Emergency": 2}
@@ -77,80 +78,143 @@ with tab1:
 # --- TAB 2: DAILY DEMAND HEATMAP FROM UPLOADED DATA ---
 # --- TAB 2: DAILY DEMAND HEATMAP ---
 # --- TAB 2: DAILY DEMAND HEATMAP ---
-with tab2:
-        # --- Forecasting using Prophet with interactive 3D-like plot ---
-        st.subheader("Forecasting Future Hype & Lows (Interactive)")
+with tab2:    
+        # --- Streamlit page configuration ---
+        st.set_page_config(page_title="Appointments Analytics & Forecasting", layout="wide")
+        st.title("Appointments Analytics & Date-wise Forecasting")
         
-        # Prepare data for Prophet
-        df_forecast = df_clean[[date_column, numeric_column]].rename(columns={
-            date_column: 'ds', numeric_column: 'y'
-        })
-        df_forecast = df_forecast.groupby('ds').sum().reset_index()  # Aggregate daily
+        # --- Upload Excel file ---
+        uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
+        if uploaded_file:
+            df = pd.read_excel(uploaded_file)
+            
+            # --- Select columns ---
+            date_column = st.selectbox(
+                "Select Date Column", df.select_dtypes(include=['datetime','object']).columns
+            )
+            numeric_column = st.selectbox(
+                "Select Numeric Column", df.select_dtypes(include=['int','float']).columns
+            )
         
-        # Fit Prophet model
-        model = Prophet(daily_seasonality=True)
-        model.fit(df_forecast)
+            if date_column and numeric_column:
+                # Convert date column to datetime
+                df[date_column] = pd.to_datetime(df[date_column], errors='coerce')
+                df_clean = df.dropna(subset=[date_column, numeric_column])
         
-        # Forecast next 30 days
-        future = model.make_future_dataframe(periods=30)
-        forecast = model.predict(future)
+                if df_clean.empty:
+                    st.warning("No valid data to analyze. Please check your selected columns.")
+                else:
+                    # --- 1. Descriptive Statistics Heatmap ---
+                    grouped = df_clean.groupby(df_clean[date_column].dt.date)[numeric_column]
+                    stats_df = pd.DataFrame({
+                        "Mean": grouped.mean(),
+                        "Median": grouped.median(),
+                        "Mode": grouped.apply(lambda x: x.mode()[0] if not x.mode().empty else np.nan),
+                        "25th Percentile": grouped.quantile(0.25),
+                        "50th Percentile": grouped.quantile(0.50),
+                        "75th Percentile": grouped.quantile(0.75)
+                    })
         
-        # Identify hype and low dates
-        hype_threshold = forecast['yhat'].quantile(0.75)
-        low_threshold = forecast['yhat'].quantile(0.25)
-        hype_dates = forecast[forecast['yhat'] >= hype_threshold]['ds']
-        low_dates = forecast[forecast['yhat'] <= low_threshold]['ds']
+                    st.subheader("Descriptive Statistics Heatmap")
+                    fig, ax = plt.subplots(figsize=(12, 5))
+                    sns.heatmap(stats_df.T, annot=True, fmt=".2f", cmap="YlGnBu", ax=ax)
+                    ax.set_xlabel("Date")
+                    ax.set_ylabel("Statistic")
+                    st.pyplot(fig)
         
-        # --- Create interactive Plotly plot ---
-        fig = go.Figure()
+                    # --- Overall insights ---
+                    st.subheader("Overall Insights")
+                    st.write(f"**Overall Mean:** {df_clean[numeric_column].mean():.2f}")
+                    st.write(f"**Overall Median:** {df_clean[numeric_column].median():.2f}")
+                    st.write(f"**Overall Mode:** {df_clean[numeric_column].mode()[0]}")
+                    st.write(f"**25th Percentile:** {df_clean[numeric_column].quantile(0.25):.2f}")
+                    st.write(f"**50th Percentile:** {df_clean[numeric_column].quantile(0.50):.2f}")
+                    st.write(f"**75th Percentile:** {df_clean[numeric_column].quantile(0.75):.2f}")
         
-        # Forecast line
-        fig.add_trace(go.Scatter(
-            x=forecast['ds'], y=forecast['yhat'], mode='lines',
-            name='Forecast', line=dict(color='blue')
-        ))
+                    st.write("**Top 5 Dates with Highest Mean:**")
+                    st.dataframe(stats_df['Mean'].sort_values(ascending=False).head(5))
+                    st.write("**Top 5 Dates with Lowest Median:**")
+                    st.dataframe(stats_df['Median'].sort_values().head(5))
         
-        # Forecast uncertainty
-        fig.add_trace(go.Scatter(
-            x=forecast['ds'], y=forecast['yhat_upper'], mode='lines',
-            name='Upper Bound', line=dict(color='lightblue'), showlegend=False
-        ))
-        fig.add_trace(go.Scatter(
-            x=forecast['ds'], y=forecast['yhat_lower'], mode='lines',
-            name='Lower Bound', line=dict(color='lightblue'), fill='tonexty', showlegend=False
-        ))
+                    # --- 2. Forecasting using Prophet ---
+                    st.subheader("Forecasting Future Hype & Lows (Interactive)")
         
-        # Actual data points
-        fig.add_trace(go.Scatter(
-            x=df_forecast['ds'], y=df_forecast['y'], mode='markers',
-            name='Actual', marker=dict(color='red', size=6)
-        ))
+                    # Prepare data for Prophet
+                    df_forecast = df_clean[[date_column, numeric_column]].rename(columns={
+                        date_column: 'ds', numeric_column: 'y'
+                    })
+                    df_forecast = df_forecast.groupby('ds').sum().reset_index()
+                    df_forecast = df_forecast.dropna(subset=['ds', 'y'])
         
-        # Add hype and low dates
-        fig.add_trace(go.Scatter(
-            x=hype_dates, y=forecast.loc[forecast['ds'].isin(hype_dates), 'yhat'],
-            mode='markers', name='Hype Dates',
-            marker=dict(color='green', size=8, symbol='triangle-up')
-        ))
-        fig.add_trace(go.Scatter(
-            x=low_dates, y=forecast.loc[forecast['ds'].isin(low_dates), 'yhat'],
-            mode='markers', name='Low Dates',
-            marker=dict(color='orange', size=8, symbol='triangle-down')
-        ))
+                    # Fit Prophet model
+                    model = Prophet(daily_seasonality=True)
+                    model.fit(df_forecast)
         
-        fig.update_layout(
-            title=f"Forecast of {numeric_column} (Interactive)",
-            xaxis_title="Date",
-            yaxis_title=numeric_column,
-            hovermode="x unified",
-            width=1200,
-            height=600
-        )
+                    # Forecast next 30 days
+                    future = model.make_future_dataframe(periods=30)
+                    forecast = model.predict(future)
         
-        st.plotly_chart(fig, use_container_width=True)
+                    # Identify hype and low dates
+                    hype_threshold = forecast['yhat'].quantile(0.75)
+                    low_threshold = forecast['yhat'].quantile(0.25)
+                    hype_dates = pd.to_datetime(forecast[forecast['yhat'] >= hype_threshold]['ds'])
+                    low_dates = pd.to_datetime(forecast[forecast['yhat'] <= low_threshold]['ds'])
         
-        # Display hype/low dates
-        st.write("**Predicted Hype Dates (High Values):**")
-        st.dataframe(hype_dates.dt.date.reset_index(drop=True))
-        st.write("**Predicted Low Dates (Low Values):**")
-        st.dataframe(low_dates.dt.date.reset_index(drop=True))
+                    # --- Interactive Plotly plot ---
+                    fig = go.Figure()
+        
+                    # Forecast line
+                    fig.add_trace(go.Scatter(
+                        x=forecast['ds'], y=forecast['yhat'], mode='lines',
+                        name='Forecast', line=dict(color='blue')
+                    ))
+        
+                    # Forecast uncertainty
+                    fig.add_trace(go.Scatter(
+                        x=forecast['ds'], y=forecast['yhat_upper'], mode='lines',
+                        line=dict(color='lightblue'), showlegend=False
+                    ))
+                    fig.add_trace(go.Scatter(
+                        x=forecast['ds'], y=forecast['yhat_lower'], mode='lines',
+                        fill='tonexty', line=dict(color='lightblue'), showlegend=False
+                    ))
+        
+                    # Actual data points
+                    fig.add_trace(go.Scatter(
+                        x=df_forecast['ds'], y=df_forecast['y'], mode='markers',
+                        name='Actual', marker=dict(color='red', size=6)
+                    ))
+        
+                    # Hype and low markers
+                    fig.add_trace(go.Scatter(
+                        x=hype_dates,
+                        y=forecast.loc[forecast['ds'].isin(hype_dates), 'yhat'],
+                        mode='markers', name='Hype Dates',
+                        marker=dict(color='green', size=8, symbol='triangle-up')
+                    ))
+                    fig.add_trace(go.Scatter(
+                        x=low_dates,
+                        y=forecast.loc[forecast['ds'].isin(low_dates), 'yhat'],
+                        mode='markers', name='Low Dates',
+                        marker=dict(color='orange', size=8, symbol='triangle-down')
+                    ))
+        
+                    fig.update_layout(
+                        title=f"Forecast of {numeric_column} (Interactive)",
+                        xaxis_title="Date",
+                        yaxis_title=numeric_column,
+                        hovermode="x unified",
+                        width=1200,
+                        height=600
+                    )
+        
+                    st.plotly_chart(fig, use_container_width=True)
+        
+                    # Display hype/low dates
+                    st.write("**Predicted Hype Dates (High Values):**")
+                    st.dataframe(hype_dates.dt.date.reset_index(drop=True))
+                    st.write("**Predicted Low Dates (Low Values):**")
+                    st.dataframe(low_dates.dt.date.reset_index(drop=True))
+        
+        else:
+            st.info("Please upload an Excel file to continue.")
