@@ -33,24 +33,12 @@ label_map = {
 st.title("🗓️ Appointment Status Prediction (Gradient Boosting)")
 st.write("Choose booking and appointment times to calculate lead time ⏱️")
 
-# Current date & time
+# Booking & Appointment Date/Time with editable default
 now = datetime.now()
-
-# Booking & Appointment Dates
 booking_date = st.date_input("📅 Booking Date", now.date())
+booking_time = st.time_input("⏰ Booking Time", now.time().replace(second=0, microsecond=0))
 appointment_date = st.date_input("📅 Appointment Date", now.date())
-
-# Booking Time (sliders)
-st.write("⏰ Booking Time")
-booking_hour = st.slider("Hour", 0, 23, now.hour)
-booking_minute = st.slider("Minute", 0, 59, now.minute)
-booking_time = time(booking_hour, booking_minute)
-
-# Appointment Time (sliders)
-st.write("⏰ Appointment Time")
-appointment_hour = st.slider("Hour", 0, 23, (now + pd.Timedelta(hours=1)).hour)
-appointment_minute = st.slider("Minute", 0, 59, now.minute)
-appointment_time = time(appointment_hour, appointment_minute)
+appointment_time = st.time_input("⏰ Appointment Time", (now + pd.Timedelta(hours=1)).time().replace(second=0, microsecond=0))
 
 # Convert to datetime
 booking_datetime = datetime.combine(booking_date, booking_time)
