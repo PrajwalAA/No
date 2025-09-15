@@ -46,29 +46,36 @@ st.set_page_config(
 
 st.title("🗓️ Appointment Status Prediction")
 st.markdown("### Powered by a Gradient Boosting Model")
-
 st.write("Enter the details of a new appointment to predict its status.")
 
 # --- User Inputs ---
 with st.container(border=True):
     st.subheader("Appointment Details")
 
-    # Booking & Appointment Date/Time
+    # Booking & Appointment Date/Time with editable time inputs
     col1, col2 = st.columns(2)
     with col1:
         booking_date = st.date_input("📅 Booking Date", datetime.today())
-        booking_time = st.time_input("⏰ Booking Time", datetime.now().time())
-
+        booking_time_str = st.text_input("⏰ Booking Time (HH:MM:SS)", value=datetime.now().strftime("%H:%M:%S"), help="Enter time in 24-hour format (e.g., 14:30:00)")
+        
     with col2:
         appointment_date = st.date_input("📅 Appointment Date", datetime.today() + timedelta(days=7))
-        appointment_time = st.time_input("⏰ Appointment Time", datetime.now().time().replace(minute=0, second=0))
+        appointment_time_str = st.text_input("⏰ Appointment Time (HH:MM:SS)", value=datetime.now().strftime("%H:%M:%S").replace(hour=8, minute=0, second=0), help="Enter time in 24-hour format (e.g., 08:00:00)")
 
-    # Convert to datetime objects for calculation
+    # --- Parse and Validate Time Inputs ---
     try:
+        booking_time = datetime.strptime(booking_time_str, "%H:%M:%S").time()
+        appointment_time = datetime.strptime(appointment_time_str, "%H:%M:%S").time()
+        
+        # Combine date and time objects
         booking_datetime = datetime.combine(booking_date, booking_time)
         appointment_datetime = datetime.combine(appointment_date, appointment_time)
+
+    except ValueError:
+        st.error("❌ Invalid time format. Please enter time in HH:MM:SS format.")
+        st.stop() # Stop the script to prevent further errors
     except Exception as e:
-        st.error(f"An error occurred with the date/time inputs: {e}")
+        st.error(f"An unexpected error occurred with the date/time inputs: {e}")
         st.stop()
     
     # Calculate lead time in minutes
