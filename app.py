@@ -33,12 +33,24 @@ label_map = {
 st.title("🗓️ Appointment Status Prediction (Gradient Boosting)")
 st.write("Choose booking and appointment times to calculate lead time ⏱️")
 
-# Booking & Appointment Date/Time with editable default
+# Current date & time
 now = datetime.now()
+
+# Booking & Appointment Dates
 booking_date = st.date_input("📅 Booking Date", now.date())
-booking_time = st.time_input("⏰ Booking Time", now.time().replace(second=0, microsecond=0))
 appointment_date = st.date_input("📅 Appointment Date", now.date())
-appointment_time = st.time_input("⏰ Appointment Time", (now + pd.Timedelta(hours=1)).time().replace(second=0, microsecond=0))
+
+# Booking Time (sliders)
+st.write("⏰ Booking Time")
+booking_hour = st.slider("Hour", 0, 23, now.hour)
+booking_minute = st.slider("Minute", 0, 59, now.minute)
+booking_time = time(booking_hour, booking_minute)
+
+# Appointment Time (sliders)
+st.write("⏰ Appointment Time")
+appointment_hour = st.slider("Hour", 0, 23, (now + pd.Timedelta(hours=1)).hour)
+appointment_minute = st.slider("Minute", 0, 59, now.minute)
+appointment_time = time(appointment_hour, appointment_minute)
 
 # Convert to datetime
 booking_datetime = datetime.combine(booking_date, booking_time)
@@ -63,4 +75,3 @@ if st.button("🔮 Predict Appointment Status"):
     prediction = gb_model.predict(user_data)[0]
     predicted_status = label_map.get(prediction, f"Unknown Class ({prediction})")
     st.success(f"✅ Predicted Status: **{predicted_status}**")
-
