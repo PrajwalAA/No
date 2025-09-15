@@ -2,7 +2,7 @@ import streamlit as st
 import joblib
 import numpy as np
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, time
 
 # --- Load the trained model ---
 model_filename = "gradient_boosting_model.pkl"
@@ -14,13 +14,13 @@ features = [
     'service_type_enc', 'holiday_flag', 'weather_enc', 'tags_enc'
 ]
 
-# --- Example category mappings (replace with your dataset categories if different) ---
+# --- Example category mappings ---
 channel_map = {"Online": 0, "Phone": 1, "In-Person": 2}
 service_type_map = {"Consultation": 0, "Follow-up": 1, "Emergency": 2}
 weather_map = {"Sunny": 0, "Rainy": 1, "Cloudy": 2, "Storm": 3}
 tags_map = {"New": 0, "Returning": 1, "VIP": 2, "Other": 3}
 
-# Mapping from model's numerical output to human-readable labels
+# --- Mapping from model's numerical output to human-readable labels ---
 label_map = {
     0: "No-Show",
     1: "Completed",
@@ -33,11 +33,12 @@ label_map = {
 st.title("🗓️ Appointment Status Prediction (Gradient Boosting)")
 st.write("Choose booking and appointment times to calculate lead time ⏱️")
 
-# Booking & Appointment Date/Time
-booking_date = st.date_input("📅 Booking Date", datetime.today())
-booking_time = st.time_input("⏰ Booking Time", datetime.now().time())
-appointment_date = st.date_input("📅 Appointment Date", datetime.today())
-appointment_time = st.time_input("⏰ Appointment Time", (datetime.now().replace(minute=0, second=0)))
+# Booking & Appointment Date/Time with editable default
+now = datetime.now()
+booking_date = st.date_input("📅 Booking Date", now.date())
+booking_time = st.time_input("⏰ Booking Time", now.time().replace(second=0, microsecond=0))
+appointment_date = st.date_input("📅 Appointment Date", now.date())
+appointment_time = st.time_input("⏰ Appointment Time", (now + pd.Timedelta(hours=1)).time().replace(second=0, microsecond=0))
 
 # Convert to datetime
 booking_datetime = datetime.combine(booking_date, booking_time)
@@ -57,14 +58,9 @@ tags_enc = tags_map[st.selectbox("🏷️ Tags", list(tags_map.keys()))]
 
 # --- Predict Button ---
 if st.button("🔮 Predict Appointment Status"):
-    user_data = np.array([[
-        lead_time_minutes, reschedule_count, channel_enc,
-        service_type_enc, holiday_flag, weather_enc, tags_enc
-    ]])
-
+    user_data = np.array([[lead_time_minutes, reschedule_count, channel_enc,
+                           service_type_enc, holiday_flag, weather_enc, tags_enc]])
     prediction = gb_model.predict(user_data)[0]
-
-    # Safely handle unknown predictions
     predicted_status = label_map.get(prediction, f"Unknown Class ({prediction})")
-
     st.success(f"✅ Predicted Status: **{predicted_status}**")
+
