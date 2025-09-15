@@ -2,6 +2,7 @@ import streamlit as st
 import joblib
 import numpy as np
 import pandas as pd
+from datetime import datetime, timedelta
 
 # --- Load the trained model ---
 model_filename = "gradient_boosting_model.pkl"
@@ -21,7 +22,21 @@ tags_map = {"New": 0, "Returning": 1, "VIP": 2, "Other": 3}
 st.title("🗓️ Appointment Status Prediction (Gradient Boosting)")
 st.write("Fill in the details below to predict appointment status.")
 
-lead_time_minutes = st.number_input("Lead time in minutes", min_value=0, max_value=10000, step=1)
+# --- Time pickers for lead time ---
+st.subheader("📅 Select Times to Calculate Lead Time")
+
+booking_datetime = st.datetime_input("Booking Date & Time", datetime.now())
+appointment_datetime = st.datetime_input("Appointment Date & Time", datetime.now() + timedelta(hours=1))
+
+# Calculate lead time in minutes
+lead_time_minutes = int((appointment_datetime - booking_datetime).total_seconds() / 60)
+if lead_time_minutes < 0:
+    st.warning("⚠️ Appointment time cannot be before booking time!")
+    lead_time_minutes = 0
+
+st.write(f"⏳ Calculated Lead Time: **{lead_time_minutes} minutes**")
+
+# --- Other inputs ---
 reschedule_count = st.number_input("Number of reschedules", min_value=0, max_value=20, step=1)
 channel_enc = channel_map[st.selectbox("Channel", list(channel_map.keys()))]
 service_type_enc = service_type_map[st.selectbox("Service Type", list(service_type_map.keys()))]
@@ -38,9 +53,8 @@ if st.button("🔮 Predict Appointment Status"):
 
     prediction = gb_model.predict(user_data)[0]
 
-    # If you have raw_data[target].cat.categories, load it
-    # For now, let's mock labels:
-    label_map = {0: "No-Show", 1: "Completed", 2: "Cancelled"}  # replace with your actual categories
+    # Mock labels (replace with your actual categories)
+    label_map = {0: "No-Show", 1: "Completed", 2: "Cancelled"}
     predicted_status = label_map.get(prediction, f"Class {prediction}")
 
     st.success(f"✅ Predicted Status: **{predicted_status}**")
