@@ -38,23 +38,12 @@ with tab1:
         model_loaded = False
         
     if model_loaded:
-        st.write("Choose booking and appointment times to calculate lead time ⏱️")
-
-        now = datetime.now()
-        col1, col2 = st.columns(2)
-        with col1:
-            booking_date = st.date_input("📅 Booking Date", now.date())
-            booking_time = st.time_input("⏰ Booking Time", now.time())
-        with col2:
-            appointment_date = st.date_input("📅 Appointment Date", now.date())
-            appointment_time = st.time_input("⏰ Appointment Time", (now + timedelta(hours=1)).time())
-
-        booking_datetime = datetime.combine(booking_date, booking_time)
-        appointment_datetime = datetime.combine(appointment_date, appointment_time)
-        if appointment_datetime < booking_datetime:
-            st.warning("⚠️ Appointment datetime is before booking datetime. Lead time set to 0.")
-        lead_time_minutes = max(0, int((appointment_datetime - booking_datetime).total_seconds() / 60))
-        st.info(f"⏱️ Lead Time: **{lead_time_minutes} minutes**")
+        # Direct input for lead time
+        st.subheader("Appointment Lead Time")
+        lead_time_minutes = st.number_input(
+            "⏱️ Lead Time (minutes)", 
+            min_value=0, max_value=10080, step=10, value=60
+        )
 
         st.subheader("Other Appointment Details")
         col3, col4, col5 = st.columns(3)
@@ -74,6 +63,7 @@ with tab1:
             prediction = gb_model.predict(user_data)[0]
             predicted_status = label_map.get(prediction, f"Unknown Class ({prediction})")
             st.success(f"✅ Predicted Status: **{predicted_status}**")
+
 
 # --- TAB 2: DAILY DEMAND HEATMAP FROM UPLOADED DATA ---
 # --- TAB 2: DAILY DEMAND HEATMAP ---
