@@ -28,7 +28,7 @@ tab1, tab2 = st.tabs(["🔮 Appointment Status Prediction", "🗓️ Daily Deman
 with tab1:
     st.header("Predict an Appointment's Status")
     
-    model_filename = "gradient_boosting_model.pkl"
+    model_filename = "gradient_boosting_model2.pkl"
     try:
         gb_model = joblib.load(model_filename)
         model_loaded = True
