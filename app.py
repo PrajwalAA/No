@@ -68,6 +68,8 @@ with tab1:
 # --- TAB 2: DAILY DEMAND HEATMAP FROM UPLOADED DATA ---
 # --- TAB 2: DAILY DEMAND HEATMAP ---
 with tab2:    
+    # --- Streamlit page configuration ---
+    st.set_page_config(page_title="Appointments Analytics & Forecasting", layout="wide")
     st.title("Appointments Analytics & Date-wise Forecasting")
     
     # --- Upload Excel file ---
@@ -91,45 +93,49 @@ with tab2:
             if df_clean.empty:
                 st.warning("No valid data to analyze. Please check your selected columns.")
             else:
-                # --- 1. Business-Oriented Metrics + Mean & Mode ---
+                # ==============================================================
+                # 1. Business Metrics + Descriptive Statistics
+                # ==============================================================
                 st.subheader("Business Metrics & Statistics Heatmap")
 
-                # Daily total appointments
-                daily_total = df_clean.groupby(df_clean[date_column].dt.date)[numeric_column] \
-                                      .count().rename("Total Appointments")
+                grouped = df_clean.groupby(df_clean[date_column].dt.date)[numeric_column]
 
-                # Revenue if available
+                # Business-oriented metrics
+                daily_total = grouped.count().rename("Total Appointments")
                 if "price" in df_clean.columns:
-                    daily_revenue = df_clean.groupby(df_clean[date_column].dt.date)["price"] \
-                                            .sum().rename("Revenue")
+                    daily_revenue = df_clean.groupby(df_clean[date_column].dt.date)["price"].sum().rename("Revenue")
                 else:
                     daily_revenue = pd.Series(dtype=float)
 
-                # Status counts if status column exists
                 if "status" in df_clean.columns:
-                    status_counts = df_clean.groupby([df_clean[date_column].dt.date, "status"]).size() \
-                                            .unstack(fill_value=0)
+                    status_counts = df_clean.groupby([df_clean[date_column].dt.date, "status"]).size().unstack(fill_value=0)
                 else:
                     status_counts = pd.DataFrame()
 
-                # Mean & Mode of numeric column
-                daily_mean = df_clean.groupby(df_clean[date_column].dt.date)[numeric_column].mean().rename("Mean")
-                daily_mode = df_clean.groupby(df_clean[date_column].dt.date)[numeric_column] \
-                                     .apply(lambda x: x.mode()[0] if not x.mode().empty else np.nan) \
-                                     .rename("Mode")
+                # Descriptive statistics
+                stats_df = pd.DataFrame({
+                    "Mean": grouped.mean(),
+                    "Median": grouped.median(),
+                    "Mode": grouped.apply(lambda x: x.mode()[0] if not x.mode().empty else np.nan),
+                    "25th Percentile": grouped.quantile(0.25),
+                    "50th Percentile": grouped.quantile(0.50),
+                    "75th Percentile": grouped.quantile(0.75)
+                })
 
-                # Merge everything
-                business_df = pd.concat([daily_total, daily_revenue, status_counts, daily_mean, daily_mode], axis=1).fillna(0)
+                # Combine business + descriptive
+                business_df = pd.concat([daily_total, daily_revenue, status_counts, stats_df], axis=1).fillna(0)
 
                 # Heatmap
-                fig, ax = plt.subplots(figsize=(12, 6))
-                sns.heatmap(business_df.T, annot=True, fmt=".0f", cmap="YlGnBu", ax=ax, 
-                            cbar_kws={'label': 'Count/Value'})
+                fig, ax = plt.subplots(figsize=(14, 6))
+                sns.heatmap(business_df.T, annot=True, fmt=".2f", cmap="YlGnBu", ax=ax, 
+                            cbar_kws={'label': 'Value'})
                 ax.set_xlabel("Date")
-                ax.set_ylabel("Metrics")
+                ax.set_ylabel("Metrics & Statistics")
                 st.pyplot(fig)
 
-                # --- 2. Insights ---
+                # ==============================================================
+                # 2. Insights
+                # ==============================================================
                 st.subheader("Business Insights")
                 st.write("**Top 5 Days by Appointments:**")
                 st.dataframe(business_df.sort_values("Total Appointments", ascending=False).head(5))
@@ -141,16 +147,28 @@ with tab2:
                 st.write("**Top 5 Days by Mean Value:**")
                 st.dataframe(business_df.sort_values("Mean", ascending=False).head(5))
 
-                # --- 3. Forecasting using Prophet ---
-                st.subheader("Forecasting Future Demand (Interactive)")
+                st.write("**Top 5 Dates with Lowest Median:**")
+                st.dataframe(business_df.sort_values("Median").head(5))
+
+                # Overall stats
+                st.subheader("Overall Statistics")
+                st.write(f"**Overall Mean:** {df_clean[numeric_column].mean():.2f}")
+                st.write(f"**Overall Median:** {df_clean[numeric_column].median():.2f}")
+                st.write(f"**Overall Mode:** {df_clean[numeric_column].mode()[0]}")
+                st.write(f"**25th Percentile:** {df_clean[numeric_column].quantile(0.25):.2f}")
+                st.write(f"**50th Percentile:** {df_clean[numeric_column].quantile(0.50):.2f}")
+                st.write(f"**75th Percentile:** {df_clean[numeric_column].quantile(0.75):.2f}")
+
+                # ==============================================================
+                # 3. Forecasting with Prophet
+                # ==============================================================
+                st.subheader("Forecasting Future Hype & Lows (Interactive)")
 
                 df_forecast = df_clean[[date_column, numeric_column]].rename(columns={
                     date_column: 'ds', numeric_column: 'y'
                 })
-                df_forecast = df_forecast.groupby('ds').sum().reset_index()
-                df_forecast = df_forecast.dropna(subset=['ds', 'y'])
+                df_forecast = df_forecast.groupby('ds').sum().reset_index().dropna(subset=['ds', 'y'])
 
-                # Fit Prophet model
                 model = Prophet(daily_seasonality=True)
                 model.fit(df_forecast)
 
@@ -158,15 +176,58 @@ with tab2:
                 future = model.make_future_dataframe(periods=30)
                 forecast = model.predict(future)
 
-                # Plot Forecast
+                # Identify hype/low
+                hype_threshold = forecast['yhat'].quantile(0.75)
+                low_threshold = forecast['yhat'].quantile(0.25)
+                hype_dates = pd.to_datetime(forecast[forecast['yhat'] >= hype_threshold]['ds'])
+                low_dates = pd.to_datetime(forecast[forecast['yhat'] <= low_threshold]['ds'])
+
+                # Plot forecast
                 fig = go.Figure()
-                fig.add_trace(go.Scatter(x=forecast['ds'], y=forecast['yhat'], mode='lines',
-                                         name='Forecast', line=dict(color='blue')))
-                fig.add_trace(go.Scatter(x=df_forecast['ds'], y=df_forecast['y'],
-                                         mode='markers', name='Actual', marker=dict(color='red', size=6)))
-                fig.update_layout(title="Forecasted Appointments", 
-                                  xaxis_title="Date", yaxis_title=numeric_column,
-                                  hovermode="x unified", width=1200, height=600)
+
+                fig.add_trace(go.Scatter(
+                    x=forecast['ds'], y=forecast['yhat'], mode='lines',
+                    name='Forecast', line=dict(color='blue')
+                ))
+                fig.add_trace(go.Scatter(
+                    x=forecast['ds'], y=forecast['yhat_upper'], mode='lines',
+                    line=dict(color='lightblue'), showlegend=False
+                ))
+                fig.add_trace(go.Scatter(
+                    x=forecast['ds'], y=forecast['yhat_lower'], mode='lines',
+                    fill='tonexty', line=dict(color='lightblue'), showlegend=False
+                ))
+                fig.add_trace(go.Scatter(
+                    x=df_forecast['ds'], y=df_forecast['y'], mode='markers',
+                    name='Actual', marker=dict(color='red', size=6)
+                ))
+                fig.add_trace(go.Scatter(
+                    x=hype_dates, y=forecast.loc[forecast['ds'].isin(hype_dates), 'yhat'],
+                    mode='markers', name='Hype Dates',
+                    marker=dict(color='green', size=8, symbol='triangle-up')
+                ))
+                fig.add_trace(go.Scatter(
+                    x=low_dates, y=forecast.loc[forecast['ds'].isin(low_dates), 'yhat'],
+                    mode='markers', name='Low Dates',
+                    marker=dict(color='orange', size=8, symbol='triangle-down')
+                ))
+
+                fig.update_layout(
+                    title=f"Forecast of {numeric_column} (Interactive)",
+                    xaxis_title="Date",
+                    yaxis_title=numeric_column,
+                    hovermode="x unified",
+                    width=1200,
+                    height=600
+                )
+
                 st.plotly_chart(fig, use_container_width=True)
+
+                # Show hype/low dates
+                st.write("**Predicted Hype Dates (High Values):**")
+                st.dataframe(hype_dates.dt.date.reset_index(drop=True))
+                st.write("**Predicted Low Dates (Low Values):**")
+                st.dataframe(low_dates.dt.date.reset_index(drop=True))
+
     else:
         st.info("Please upload an Excel file to continue.")
