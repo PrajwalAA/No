@@ -67,144 +67,106 @@ with tab1:
 
 # --- TAB 2: DAILY DEMAND HEATMAP FROM UPLOADED DATA ---
 # --- TAB 2: DAILY DEMAND HEATMAP ---
-# --- TAB 2: DAILY DEMAND HEATMAP ---
 with tab2:    
-        # --- Streamlit page configuration ---
-        st.set_page_config(page_title="Appointments Analytics & Forecasting", layout="wide")
-        st.title("Appointments Analytics & Date-wise Forecasting")
+    st.title("Appointments Analytics & Date-wise Forecasting")
+    
+    # --- Upload Excel file ---
+    uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
+    if uploaded_file:
+        df = pd.read_excel(uploaded_file)
         
-        # --- Upload Excel file ---
-        uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
-        if uploaded_file:
-            df = pd.read_excel(uploaded_file)
-            
-            # --- Select columns ---
-            date_column = st.selectbox(
-                "Select Date Column", df.select_dtypes(include=['datetime','object']).columns
-            )
-            numeric_column = st.selectbox(
-                "Select Numeric Column", df.select_dtypes(include=['int','float']).columns
-            )
-        
-            if date_column and numeric_column:
-                # Convert date column to datetime
-                df[date_column] = pd.to_datetime(df[date_column], errors='coerce')
-                df_clean = df.dropna(subset=[date_column, numeric_column])
-        
-                if df_clean.empty:
-                    st.warning("No valid data to analyze. Please check your selected columns.")
+        # --- Select columns ---
+        date_column = st.selectbox(
+            "Select Date Column", df.select_dtypes(include=['datetime','object']).columns
+        )
+        numeric_column = st.selectbox(
+            "Select Numeric Column", df.select_dtypes(include=['int','float']).columns
+        )
+    
+        if date_column and numeric_column:
+            # Convert date column to datetime
+            df[date_column] = pd.to_datetime(df[date_column], errors='coerce')
+            df_clean = df.dropna(subset=[date_column, numeric_column])
+    
+            if df_clean.empty:
+                st.warning("No valid data to analyze. Please check your selected columns.")
+            else:
+                # --- 1. Business-Oriented Metrics + Mean & Mode ---
+                st.subheader("Business Metrics & Statistics Heatmap")
+
+                # Daily total appointments
+                daily_total = df_clean.groupby(df_clean[date_column].dt.date)[numeric_column] \
+                                      .count().rename("Total Appointments")
+
+                # Revenue if available
+                if "price" in df_clean.columns:
+                    daily_revenue = df_clean.groupby(df_clean[date_column].dt.date)["price"] \
+                                            .sum().rename("Revenue")
                 else:
-                    # --- 1. Descriptive Statistics Heatmap ---
-                    grouped = df_clean.groupby(df_clean[date_column].dt.date)[numeric_column]
-                    stats_df = pd.DataFrame({
-                        "Mean": grouped.mean(),
-                        "Median": grouped.median(),
-                        "Mode": grouped.apply(lambda x: x.mode()[0] if not x.mode().empty else np.nan),
-                        "25th Percentile": grouped.quantile(0.25),
-                        "50th Percentile": grouped.quantile(0.50),
-                        "75th Percentile": grouped.quantile(0.75)
-                    })
-        
-                    st.subheader("Descriptive Statistics Heatmap")
-                    fig, ax = plt.subplots(figsize=(12, 5))
-                    sns.heatmap(stats_df.T, annot=True, fmt=".2f", cmap="YlGnBu", ax=ax)
-                    ax.set_xlabel("Date")
-                    ax.set_ylabel("Statistic")
-                    st.pyplot(fig)
-        
-                    # --- Overall insights ---
-                    st.subheader("Overall Insights")
-                    st.write(f"**Overall Mean:** {df_clean[numeric_column].mean():.2f}")
-                    st.write(f"**Overall Median:** {df_clean[numeric_column].median():.2f}")
-                    st.write(f"**Overall Mode:** {df_clean[numeric_column].mode()[0]}")
-                    st.write(f"**25th Percentile:** {df_clean[numeric_column].quantile(0.25):.2f}")
-                    st.write(f"**50th Percentile:** {df_clean[numeric_column].quantile(0.50):.2f}")
-                    st.write(f"**75th Percentile:** {df_clean[numeric_column].quantile(0.75):.2f}")
-        
-                    st.write("**Top 5 Dates with Highest Mean:**")
-                    st.dataframe(stats_df['Mean'].sort_values(ascending=False).head(5))
-                    st.write("**Top 5 Dates with Lowest Median:**")
-                    st.dataframe(stats_df['Median'].sort_values().head(5))
-        
-                    # --- 2. Forecasting using Prophet ---
-                    st.subheader("Forecasting Future Hype & Lows (Interactive)")
-        
-                    # Prepare data for Prophet
-                    df_forecast = df_clean[[date_column, numeric_column]].rename(columns={
-                        date_column: 'ds', numeric_column: 'y'
-                    })
-                    df_forecast = df_forecast.groupby('ds').sum().reset_index()
-                    df_forecast = df_forecast.dropna(subset=['ds', 'y'])
-        
-                    # Fit Prophet model
-                    model = Prophet(daily_seasonality=True)
-                    model.fit(df_forecast)
-        
-                    # Forecast next 30 days
-                    future = model.make_future_dataframe(periods=30)
-                    forecast = model.predict(future)
-        
-                    # Identify hype and low dates
-                    hype_threshold = forecast['yhat'].quantile(0.75)
-                    low_threshold = forecast['yhat'].quantile(0.25)
-                    hype_dates = pd.to_datetime(forecast[forecast['yhat'] >= hype_threshold]['ds'])
-                    low_dates = pd.to_datetime(forecast[forecast['yhat'] <= low_threshold]['ds'])
-        
-                    # --- Interactive Plotly plot ---
-                    fig = go.Figure()
-        
-                    # Forecast line
-                    fig.add_trace(go.Scatter(
-                        x=forecast['ds'], y=forecast['yhat'], mode='lines',
-                        name='Forecast', line=dict(color='blue')
-                    ))
-        
-                    # Forecast uncertainty
-                    fig.add_trace(go.Scatter(
-                        x=forecast['ds'], y=forecast['yhat_upper'], mode='lines',
-                        line=dict(color='lightblue'), showlegend=False
-                    ))
-                    fig.add_trace(go.Scatter(
-                        x=forecast['ds'], y=forecast['yhat_lower'], mode='lines',
-                        fill='tonexty', line=dict(color='lightblue'), showlegend=False
-                    ))
-        
-                    # Actual data points
-                    fig.add_trace(go.Scatter(
-                        x=df_forecast['ds'], y=df_forecast['y'], mode='markers',
-                        name='Actual', marker=dict(color='red', size=6)
-                    ))
-        
-                    # Hype and low markers
-                    fig.add_trace(go.Scatter(
-                        x=hype_dates,
-                        y=forecast.loc[forecast['ds'].isin(hype_dates), 'yhat'],
-                        mode='markers', name='Hype Dates',
-                        marker=dict(color='green', size=8, symbol='triangle-up')
-                    ))
-                    fig.add_trace(go.Scatter(
-                        x=low_dates,
-                        y=forecast.loc[forecast['ds'].isin(low_dates), 'yhat'],
-                        mode='markers', name='Low Dates',
-                        marker=dict(color='orange', size=8, symbol='triangle-down')
-                    ))
-        
-                    fig.update_layout(
-                        title=f"Forecast of {numeric_column} (Interactive)",
-                        xaxis_title="Date",
-                        yaxis_title=numeric_column,
-                        hovermode="x unified",
-                        width=1200,
-                        height=600
-                    )
-        
-                    st.plotly_chart(fig, use_container_width=True)
-        
-                    # Display hype/low dates
-                    st.write("**Predicted Hype Dates (High Values):**")
-                    st.dataframe(hype_dates.dt.date.reset_index(drop=True))
-                    st.write("**Predicted Low Dates (Low Values):**")
-                    st.dataframe(low_dates.dt.date.reset_index(drop=True))
-        
-        else:
-            st.info("Please upload an Excel file to continue.")
+                    daily_revenue = pd.Series(dtype=float)
+
+                # Status counts if status column exists
+                if "status" in df_clean.columns:
+                    status_counts = df_clean.groupby([df_clean[date_column].dt.date, "status"]).size() \
+                                            .unstack(fill_value=0)
+                else:
+                    status_counts = pd.DataFrame()
+
+                # Mean & Mode of numeric column
+                daily_mean = df_clean.groupby(df_clean[date_column].dt.date)[numeric_column].mean().rename("Mean")
+                daily_mode = df_clean.groupby(df_clean[date_column].dt.date)[numeric_column] \
+                                     .apply(lambda x: x.mode()[0] if not x.mode().empty else np.nan) \
+                                     .rename("Mode")
+
+                # Merge everything
+                business_df = pd.concat([daily_total, daily_revenue, status_counts, daily_mean, daily_mode], axis=1).fillna(0)
+
+                # Heatmap
+                fig, ax = plt.subplots(figsize=(12, 6))
+                sns.heatmap(business_df.T, annot=True, fmt=".0f", cmap="YlGnBu", ax=ax, 
+                            cbar_kws={'label': 'Count/Value'})
+                ax.set_xlabel("Date")
+                ax.set_ylabel("Metrics")
+                st.pyplot(fig)
+
+                # --- 2. Insights ---
+                st.subheader("Business Insights")
+                st.write("**Top 5 Days by Appointments:**")
+                st.dataframe(business_df.sort_values("Total Appointments", ascending=False).head(5))
+
+                if "Revenue" in business_df.columns:
+                    st.write("**Top 5 Days by Revenue:**")
+                    st.dataframe(business_df.sort_values("Revenue", ascending=False).head(5))
+
+                st.write("**Top 5 Days by Mean Value:**")
+                st.dataframe(business_df.sort_values("Mean", ascending=False).head(5))
+
+                # --- 3. Forecasting using Prophet ---
+                st.subheader("Forecasting Future Demand (Interactive)")
+
+                df_forecast = df_clean[[date_column, numeric_column]].rename(columns={
+                    date_column: 'ds', numeric_column: 'y'
+                })
+                df_forecast = df_forecast.groupby('ds').sum().reset_index()
+                df_forecast = df_forecast.dropna(subset=['ds', 'y'])
+
+                # Fit Prophet model
+                model = Prophet(daily_seasonality=True)
+                model.fit(df_forecast)
+
+                # Forecast next 30 days
+                future = model.make_future_dataframe(periods=30)
+                forecast = model.predict(future)
+
+                # Plot Forecast
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(x=forecast['ds'], y=forecast['yhat'], mode='lines',
+                                         name='Forecast', line=dict(color='blue')))
+                fig.add_trace(go.Scatter(x=df_forecast['ds'], y=df_forecast['y'],
+                                         mode='markers', name='Actual', marker=dict(color='red', size=6)))
+                fig.update_layout(title="Forecasted Appointments", 
+                                  xaxis_title="Date", yaxis_title=numeric_column,
+                                  hovermode="x unified", width=1200, height=600)
+                st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Please upload an Excel file to continue.")
