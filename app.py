@@ -15,7 +15,7 @@ channel_map = {"Online": 0, "Phone": 1, "In-Person": 2}
 service_type_map = {"Consultation": 0, "Follow-up": 1, "Emergency": 2}
 weather_map = {"Sunny": 0, "Rainy": 1, "Cloudy": 2, "Storm": 3}
 tags_map = {"New": 0, "Returning": 1, "VIP": 2, "Other": 3}
-label_map = {0: "No-Show", 1: "Completed", 2: "Cancelled", 3: "Rescheduled", 4: "Confirmed"}
+label_map = {0: "No-Show", 1: "Show"}
 
 # --- 2. STREAMLIT APP LAYOUT ---
 st.set_page_config(page_title="Demand & Prediction Dashboard", layout="wide", initial_sidebar_state="expanded")
